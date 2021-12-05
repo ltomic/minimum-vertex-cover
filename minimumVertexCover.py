@@ -96,10 +96,135 @@ def reduction(state, E, W):
 
     return state
 
+def find_vertex_not_in_state_with_largest_uncovered_edge_weight_ratio(state,
+        candidate_vertices, E, W):
+    sol = -1
+    max_ratio = -1
 
+    for i in candidate_vertices:
+        ratio = calculate_uncovered_edges(state, E, i) / W[i]
+
+        if ratio > max_ratio: # TODO: jos dodati tu random
+            max_ratio = ratio
+            sol = i
+
+    return sol
+
+def first_repair_heuristic(state, E, W):
+    vertices_not_in_solution = set([i for i in range(len(state)) if state[i] == 0])
+
+    while check_vertex_cover(state, E, W) == False:
+        v = find_vertex_with_largest_uncovered_edge_weight_ratio(state,
+                vertices_not_in_solution, E, W)
+
+        state[v] = 1
+        vertices_not_in_solution.remove(v)
+
+    return state
+
+def second_repair_heuristic(state, E, W):
+    vertices_not_in_solution = set([i for i in range(state) if state[i] == 0])
+
+    while check_vertex_cover(state, E, W) == False:
+        v = random.choice(list(vertices_not_in_solution))
+        A = [i for i in E[v] if state[i] == 0]
+        A.append(v)
+
+        s = find_vertex_with_largest_uncovered_edge_weight_ratio(state,
+                A, E, W)
+
+        state[v] = 1
+        vertices_not_in_solution.remove(v)
+
+    return state
+
+def repair(state, E, W, p_h = 0.5):
+    if random.random() < p_h:
+        return first_repair_heuristic(state, E, W)
+
+    return second_repair_heuristic(state, E, W)
 
 def generate_random_solution(num_vertex): #generira pocetno rjesenje
     return [random.randint(0, 1) if degree(i, E) > 0 else 0 for i in range(num_vertex)]
+
+def generate_solution(E, W):
+    num_vertex = len(E)
+
+    return reduction(repair(generate_random_solution(num_vertex), E, W), E, W)
+
+def generate_initial_population(n, E, W):
+    population = []
+
+    while len(population) < n:
+        new_solution = generate_solution(E, W)
+
+        if new_solution not in population: # TODO: ovo bi moglo biti sporo
+            population.append(new_solution)
+
+    return population
+
+def calculate_fitness(solution, W):
+    return sum([W[i] for i in range(len(solution)) if solution[i] == 1])
+
+def find_best_solution(population, W):
+    best_solution = population[0]
+    best_score = calculate_fitness(best_solution, W)
+
+    for solution in population:
+        current_score = calculate_fitness(solution, W)
+
+        if current_score < best_score:
+            best_solution = solution
+            best_score = current_score
+
+    return best_score
+
+def find_worst_solution(population, W):
+    worst_solution = population[0]
+    worst_score = calculate_fitness(worst_solution, W)
+
+    for solution in population:
+        current_score = calculate_fitness(solution, W)
+
+        if current_score > best_score:
+            worst_solution = solution
+            worst_score = current_score
+
+    return worst_score
+
+def replace_worst_solution(population, new_solution, W):
+    worst_solution_index = find_worst_solution(population)
+
+    population[worst_solution_index] = new_solution
+
+
+
+def genetic_algorithm(E, W, n = 10, p_c = 0.5, max_gen = 100):
+    population = generate_initial_population(n, E, W)
+
+    current_best = find_best_solution(population, W)
+
+    gen = 0
+    while generation < max_gen:
+        if random.random() < p_c:
+            p1, p2 = binary_tournament_selection()
+
+            new_solution = mutate(crossover(p1, p2))
+        else:
+            new_solution = generate_random_solution(len(E))
+
+        new_solution = reduction(repair(new_solution, E, W), E, W)
+
+        if new_solution not in population: # TODO: mozda sporo
+            gen += 1
+
+            replace_worst_solution(population, new_solution)
+
+            if calculate_fitness(new_solution, W) < calculate_fitness(current_best):
+                current_best = new_solution
+
+    return current_best
+
 
 if __name__ == "__main__":
     filename = sys.argv[1]
