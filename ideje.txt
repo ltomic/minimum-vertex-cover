@@ -1,0 +1,23 @@
+1. možda čuvati popis bridova
+
+2. objektno-orijentirana implementacija rješenja (stanja)?
+
+3. prilagoditi za težinske grafove
+
+__________________________________________________________________________________________________________
+
+NAPOMENA:
+	nekada je prvi vrh 0, a nekada 1
+	nekada su sortirani, nekada ne
+	nekada pišu oba smjera brida u popisu (citanjePodataka je tome prilagođeno, no zbog toga sporije)
+	?iskoristiti broj vrhova/bridova za ubrzanje čitanja?
+
+POTREBNO JE:
+
+	-? zavrtiti neke random grafove s random weightovima na našem algoritmu i nekim tuđim algoritmima
+
+	- izraditi vremensku analizu, s grafičkim prikazima
+
+	-? grafički prikaz grafova i/ili rješenja na tim grafovima
+
+	- na kraju, izraditi sučelje, dokumentaciju i prezentaciju
