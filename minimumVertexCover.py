@@ -1,6 +1,7 @@
 # run with
 # python minimumVertexCover.py ./data/facebook_combined.txt
 import random
+import time
 
 import sys
 
@@ -46,14 +47,14 @@ def weight_to_degree_ratio(E, W):   #MOZDA ovo racunati u readData
     WDR = []
     averageWDR = 0
     v = len(E)                  #MOZDA u readData returnat i num_vertex pa to u mainu cuvat i u ovim situacijama zvat
-    
+
     for i in range(v):
         x = W[i] / degree(i, E)
         WDR.append(x)
         averageWDR += x
 
     averageWDR/=v
-        
+
     return WDR, averageWDR
 
 
@@ -96,22 +97,33 @@ def reduction(state, E, W):
     # maximum ratio of weight to degree is selected
     # TODO: namjestiti kao parametar
     p_sc = 0.5
-    while len(covered_vertices) != 0:
-        if random.random() > p_sc:
+    while len(covered_vertices) > 0:
+        if random.random() <= p_sc:
             vertex_to_remove = find_vertex_with_highest_weight_degree_ratio(covered_vertices, W, E)
         else:                       #ovako Singh izbaci random vrh ako ne izbaci najgori
             # TODO: mozda promjeniti covered_vertices u list jer ovo traje O(n)
             vertex_to_remove = random.choice(list(covered_vertices))
 
-        covered_vertices.remove(vertex_to_remove)
         state[vertex_to_remove] = 0
 
-        covered_vertex = find_covered_vertices(state, E)
+        covered_vertices = find_covered_vertices(state, E)
+
+    if check_vertex_cover(state, E) == False:
+        print("NE VALJA reduction")
+        sys.exit(0)
 
     return state
 
-def find_vertex_not_in_state_with_largest_uncovered_edge_weight_ratio(state,
-        candidate_vertices, E, W):
+def calculate_uncovered_edges(state, E, x):
+    uncovered_edges = 0
+
+    for v in E[x]:
+        if state[v] == 0:
+            uncovered_edges += 1
+
+    return uncovered_edges
+
+def find_vertex_with_largest_uncovered_edge_weight_ratio(state, candidate_vertices, E, W):
     sol = -1
     max_ratio = -1
 
@@ -130,10 +142,12 @@ def check_vertex_cover(state, E):
             for j in E[i]:
                 if state[j]==0:
                     return False
-                
+
     return True
 
 def first_repair_heuristic(state, E, W):
+    start_time = time.time()
+
     vertices_not_in_solution = set([i for i in range(len(state)) if state[i] == 0])
 
     while check_vertex_cover(state, E) == False:
@@ -143,10 +157,18 @@ def first_repair_heuristic(state, E, W):
         state[v] = 1
         vertices_not_in_solution.remove(v)
 
+    if check_vertex_cover(state, E) == False:
+        print("NE VALJA first repair")
+        sys.exit(0)
+
+    end_time = time.time()
+
+    print("Vrijeme first repair: ", end_time - start_time)
     return state
 
 def second_repair_heuristic(state, E, W):
-    vertices_not_in_solution = set([i for i in range(state) if state[i] == 0])
+    start_time = time.time()
+    vertices_not_in_solution = set([i for i in range(len(state)) if state[i] == 0])
 
     while check_vertex_cover(state, E) == False:
         v = random.choice(list(vertices_not_in_solution))
@@ -158,6 +180,14 @@ def second_repair_heuristic(state, E, W):
 
         state[v] = 1
         vertices_not_in_solution.remove(v)
+
+    if check_vertex_cover(state, E) == False:
+        print("NE VALJA second repair")
+        sys.exit(0)
+
+    end_time = time.time()
+
+    print("Vrijeme second repair: ", end_time - start_time)
 
     return state
 
@@ -176,13 +206,27 @@ def generate_solution(E, W):
     return reduction(repair(generate_random_solution(num_vertex), E, W), E, W)
 
 def generate_initial_population(n, E, W):
+    print("Generate initial population")
     population = []
 
     while len(population) < n:
+        start_time = time.time()
         new_solution = generate_solution(E, W)
 
+        if check_vertex_cover(new_solution, E) == False:
+            print("NE VALJA1")
+            sys.exit(0)
+
+        end_time = time.time()
+
+        print(len(population), "Vrijeme: ", end_time - start_time)
+
+
+        start_time = time.time()
         if new_solution not in population: # TODO: ovo bi moglo biti sporo
             population.append(new_solution)
+        end_time = time.time()
+        print(len(population), "Unique check: ", end_time - start_time)
 
     return population
 
@@ -200,70 +244,86 @@ def find_best_solution(population, W):
             best_solution = solution
             best_score = current_score
 
-    return best_score
+    return best_solution
 
-def find_worst_solution(population, W):
-    worst_solution = population[0]
-    worst_score = calculate_fitness(worst_solution, W)
+def find_worst_solution_index(population, W):
+    worst_solution_index = 0
+    worst_score = calculate_fitness(population[worst_solution_index], W)
 
-    for solution in population:
-        current_score = calculate_fitness(solution, W)
+    for i in range(len(population)):
+        current_score = calculate_fitness(population[i], W)
 
-        if current_score > best_score:
-            worst_solution = solution
+        if current_score > worst_score:
+            worst_solution_index = i
             worst_score = current_score
 
-    return worst_score
+    return worst_solution_index
 
 def replace_worst_solution(population, new_solution, W):
-    worst_solution_index = find_worst_solution(population)
+    worst_solution_index = find_worst_solution_index(population, W)
 
     population[worst_solution_index] = new_solution
-    
-def mutate(solution, WDR, averageWDR, p_m = 0.1): #TODO: p_m=???
-    for i in len(solution):
-        if solution[i]==1:
+
+def binary_tournament_selection(population, W):
+    a, b = random.sample(population, k = 2)
+
+    fitness_a, fitness_b = calculate_fitness(a, W), calculate_fitness(b, W)
+
+    return a if fitness_a > fitness_b else b
+
+def mutate(solution, WDR_list, average_WDR, p_m = 0.1): #TODO: p_m=???
+    for i in range(len(solution)):
+        if solution[i] == 1:
             if random.random() < p_m:
-                solution[i]=0
+                solution[i] = 0
         else:
-            if random.random() < p_m and WDR[i]<averageWDR:  #redoslijed oko and?
-                solution[i]=1
-                
+            if random.random() < p_m and WDR_list[i] < average_WDR:  #redoslijed oko and?
+                solution[i] = 1
+
     return solution
 
-def crossover(parent1, parent2):
-    child = p_2[:]
-    p_1 = calculate_fitness(parent1, W)
-    p_2 = calculate_fitness(parent2, W)
+def crossover(parent_1, parent_2): # TODO: jos dodati random
+    child = parent_2[:]
+    p_1 = calculate_fitness(parent_1, W)
+    p_2 = calculate_fitness(parent_2, W)
     p1 = p_2 / (p_1 + p_2)
-    for i in range(len(p_1)):
+
+    for i in range(len(parent_1)):
         if random.random() < p1:
-            child[i] = parent1[i]
+            child[i] = parent_1[i]
 
     return child
 
-def genetic_algorithm(E, W, n = 10, p_c = 0.5, max_gen = 100): #TODO: p_c je kompliciraniji
+def genetic_algorithm(E, W, n = 4, p_c = 0.5, max_gen = 10): #TODO: p_c je kompliciraniji
     population = generate_initial_population(n, E, W)
 
     current_best = find_best_solution(population, W)
+    WDR_list = [W[i] / degree(i, E) for i in range(len(E))]
+    avg_WDR = sum(WDR_list) / len(E)
+
+    if [check_vertex_cover(state, E) for state in population].count(False) > 0:
+        print("NE VALJA")
+        sys.exit(0)
 
     gen = 0
-    while generation < max_gen:
+    while gen < max_gen:
+        print("generation: ", gen)
         if random.random() < p_c:
-            p1, p2 = binary_tournament_selection()
+            p1 = binary_tournament_selection(population, W)
+            p2 = binary_tournament_selection(population, W)
 
-            new_solution = mutate(crossover(p1, p2))
+            new_solution = mutate(crossover(p1, p2), WDR_list, avg_WDR)
         else:
             new_solution = generate_random_solution(len(E))
 
         new_solution = reduction(repair(new_solution, E, W), E, W)
 
-        if new_solution not in population: # TODO: mozda sporo
+        if new_solution not in population:
             gen += 1
 
-            replace_worst_solution(population, new_solution)
+            replace_worst_solution(population, new_solution, W)
 
-            if calculate_fitness(new_solution, W) < calculate_fitness(current_best):
+            if calculate_fitness(new_solution, W) < calculate_fitness(current_best, W):
                 current_best = new_solution
 
     return current_best
@@ -275,7 +335,6 @@ if __name__ == "__main__":
     with open(filename, 'r') as input_file:
         W, E = readData(input_file)
 
-    state = generate_random_solution(len(W))
-    print(state.count(1))
-    state = reduction(state, E, W)
-    print(state.count(1))
+    solution = genetic_algorithm(E, W)
+    print(calculate_fitness(solution, W))
+    print(check_vertex_cover(solution, E))
