@@ -44,19 +44,10 @@ def readData(input_file):  #uvesti podatke iz .txt
     return W, E # B, W, DOBRO BI NAM DOSAO INTEGER BROJ VRHOVA (UMJESTO LEN() KASNIJE)
 
 def weight_to_degree_ratio(E, W):   #MOZDA ovo racunati u readData
-    WDR = []
-    averageWDR = 0
-    v = len(E)                  #MOZDA u readData returnat i num_vertex pa to u mainu cuvat i u ovim situacijama zvat
-
-    for i in range(v):
-        x = W[i] / degree(i, E)
-        WDR.append(x)
-        averageWDR += x
-
-    averageWDR/=v
+    WDR = [W[u] / degree(u, E) for u in range(len(E))]
+    averageWDR = sum(WDR) / len(E)
 
     return WDR, averageWDR
-
 
 # check if vertex is in cover and its edges are covered with neighbor vertices
 def check_covered_vertex(x, state, E):
@@ -73,25 +64,36 @@ def check_covered_vertex(x, state, E):
 def find_covered_vertices(state, E):
     return set([i for i in range(len(E)) if check_covered_vertex(i, state, E)])
 
-def find_vertex_with_highest_weight_degree_ratio(covered_vertices, WDR, E):
-    sol = list(covered_vertices)[0] # TODO: ovo treba nekako bolje
-    max_ratio = W[sol] / degree(sol, E)
+def find_vertex_with_highest_weight_degree_ratio(covered_vertices, ratios):
+    while ratios[-1][0] not in covered_vertices:
+        ratios.pop()
 
-    for i in covered_vertices:
+    return ratios[-1][0]
 
-        if WDR[i] > max_ratio:
-            max_ratio = WDR[i]
-            sol = i              #statisticki najgori vrh u rjesenju
+def calculate_weight_degree_ratios(vertices, W, E):
+    return sorted([(u, W[u] / degree(u, E)) for u in vertices], key=lambda x: x[1])
 
-    return sol
+def update_covered_vertices(covered_vertices, E, vertex_to_remove):
+    covered_vertices.remove(vertex_to_remove)
+
+    for v in E[vertex_to_remove]:
+        if v in covered_vertices:
+            covered_vertices.remove(v)
 
 
 # izbaciti visak iz rjesenja
 def reduction(state, E, W):
+    reduction_start_time = time.time()
     num_vertex = len(state)   #broj vrhova
 
-    # vertex whose edges are covered by neighbor vertex
+    # vertex in vertex cover whose edges are covered by neighbor vertex
+    find_covered_vertices_start_time = time.time()
     covered_vertices = find_covered_vertices(state, E)
+    find_covered_vertices_end_time = time.time()
+
+    find_covered_vertices_time = find_covered_vertices_end_time -  \
+                                find_covered_vertices_start_time
+    vertices_wdr = calculate_weight_degree_ratios(covered_vertices, W, E)
 
     # probability with which the vertex having the
     # maximum ratio of weight to degree is selected
@@ -99,19 +101,28 @@ def reduction(state, E, W):
     p_sc = 0.5
     while len(covered_vertices) > 0:
         if random.random() <= p_sc:
-            vertex_to_remove = find_vertex_with_highest_weight_degree_ratio(covered_vertices, W, E)
+            vertex_to_remove = find_vertex_with_highest_weight_degree_ratio(covered_vertices, vertices_wdr)
         else:                       #ovako Singh izbaci random vrh ako ne izbaci najgori
             # TODO: mozda promjeniti covered_vertices u list jer ovo traje O(n)
             vertex_to_remove = random.choice(list(covered_vertices))
 
         state[vertex_to_remove] = 0
 
-        covered_vertices = find_covered_vertices(state, E)
+        find_covered_vertices_start_time = time.time()
+        update_covered_vertices(covered_vertices, E, vertex_to_remove)
+        find_covered_vertices_end_time = time.time()
+
+        find_covered_vertices_time += find_covered_vertices_end_time -  \
+                                    find_covered_vertices_start_time
 
     if check_vertex_cover(state, E) == False:
         print("NE VALJA reduction")
         sys.exit(0)
 
+    print("Find covered vertices time:", find_covered_vertices_time)
+    reduction_end_time = time.time()
+
+    print("Reduction time:", reduction_end_time - reduction_start_time)
     return state
 
 def calculate_uncovered_edges(state, E, x):
@@ -123,12 +134,26 @@ def calculate_uncovered_edges(state, E, x):
 
     return uncovered_edges
 
-def find_vertex_with_largest_uncovered_edge_weight_ratio(state, candidate_vertices, E, W):
+def calculate_uncovered_edges_for_all_vertices(state, E):
+    uncovered_edges_cnt = [0 for i in range(len(state))]
+
+    for u in range(len(state)):
+        if state[u] == 1:
+            continue
+
+        for v in E[u]:
+            if state[v] == 0:
+                uncovered_edges_cnt[u] += 1
+
+    return uncovered_edges_cnt
+
+def find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt,
+        candidate_vertices, W):
     sol = -1
     max_ratio = -1
 
     for i in candidate_vertices:
-        ratio = calculate_uncovered_edges(state, E, i) / W[i]
+        ratio = uncovered_edges_cnt[i] / W[i]
 
         if ratio > max_ratio: # TODO: jos dodati tu random
             max_ratio = ratio
@@ -138,48 +163,98 @@ def find_vertex_with_largest_uncovered_edge_weight_ratio(state, candidate_vertic
 
 def check_vertex_cover(state, E):
     for i in range(len(state)):
-        if state[i]==0:
+        if state[i] == 0:
             for j in E[i]:
-                if state[j]==0:
+                if state[j] == 0:
                     return False
 
     return True
+
+def find_edges_not_covered(state, E):
+    edges_not_covered = set()
+
+    for i in range(len(state)):
+        if state[i] == 1:
+            continue
+
+        for b in E[i]:
+            if state[b] == False:
+                edges_not_covered.add(frozenset([i, b]))
+
+    return edges_not_covered
+
+def cover_edges_not_covered(u, edges_not_covered, E):
+    for v in E[u]:
+        if frozenset([u, v]) in edges_not_covered:
+            edges_not_covered.remove(frozenset([u, v]))
+
+def update_uncovered_edges_cnt(uncovered_edges_cnt, state, v, E):
+    for u in E[v]:
+        if state[u] == True:
+            continue
+
+        uncovered_edges_cnt[u] -= 1
+        uncovered_edges_cnt[v] -= 1
 
 def first_repair_heuristic(state, E, W):
     start_time = time.time()
 
     vertices_not_in_solution = set([i for i in range(len(state)) if state[i] == 0])
 
-    while check_vertex_cover(state, E) == False:
-        v = find_vertex_with_largest_uncovered_edge_weight_ratio(state,
-                vertices_not_in_solution, E, W)
+    edges_not_covered = find_edges_not_covered(state, E)
+    uncovered_edges_cnt = calculate_uncovered_edges_for_all_vertices(state, E)
+    it = 0
+
+    cover_time = 0
+    find_vertex_time = 0
+    while len(edges_not_covered) > 0:
+        it += 1
+        start_time_find_vertex = time.time()
+        v = find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt,
+                vertices_not_in_solution, W)
+        end_time_find_vertex = time.time()
+
+        find_vertex_time += end_time_find_vertex - start_time_find_vertex
 
         state[v] = 1
         vertices_not_in_solution.remove(v)
 
+        start_time_cover = time.time()
+        cover_edges_not_covered(v, edges_not_covered, E)
+        update_uncovered_edges_cnt(uncovered_edges_cnt, state, v, E)
+        end_time_cover = time.time()
+
+        cover_time += end_time_cover - start_time_cover
+
+    print("Cover time:", cover_time)
+    print("Find vertex time:", find_vertex_time)
+
     if check_vertex_cover(state, E) == False:
-        print("NE VALJA first repair")
+        print("First repair does not return vertex cover")
         sys.exit(0)
 
     end_time = time.time()
 
-    print("Vrijeme first repair: ", end_time - start_time)
+    print("Time first repair: ", end_time - start_time)
     return state
 
 def second_repair_heuristic(state, E, W):
     start_time = time.time()
     vertices_not_in_solution = set([i for i in range(len(state)) if state[i] == 0])
 
+    uncovered_edges_cnt = calculate_uncovered_edges_for_all_vertices(state, E)
+
     while check_vertex_cover(state, E) == False:
         v = random.choice(list(vertices_not_in_solution))
         A = [i for i in E[v] if state[i] == 0]
         A.append(v)
 
-        s = find_vertex_with_largest_uncovered_edge_weight_ratio(state,
-                A, E, W)
+        s = find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt,
+                A, W)
 
         state[v] = 1
         vertices_not_in_solution.remove(v)
+        update_uncovered_edges_cnt(uncovered_edges_cnt, state, v, E)
 
     if check_vertex_cover(state, E) == False:
         print("NE VALJA second repair")
@@ -191,7 +266,7 @@ def second_repair_heuristic(state, E, W):
 
     return state
 
-def repair(state, E, W, p_h = 0.5):
+def repair(state, E, W, p_h = 0.2):
     if random.random() < p_h:
         return first_repair_heuristic(state, E, W)
 
@@ -201,32 +276,27 @@ def generate_random_solution(num_vertex): #generira pocetno rjesenje
     return [random.randint(0, 1) if degree(i, E) > 0 else 0 for i in range(num_vertex)]
 
 def generate_solution(E, W):
-    num_vertex = len(E)
+    start_time = time.time()
 
-    return reduction(repair(generate_random_solution(num_vertex), E, W), E, W)
+    solution = reduction(repair(generate_random_solution(len(E)), E, W), E, W)
+
+    if check_vertex_cover(solution, E) == False:
+        print("Generate solution procedure does not give valid vertex cover")
+        sys.exit(0)
+
+    end_time = time.time()
+    print("Time to generate new solution: ", end_time - start_time)
+    return solution
 
 def generate_initial_population(n, E, W):
     print("Generate initial population")
     population = []
 
     while len(population) < n:
-        start_time = time.time()
         new_solution = generate_solution(E, W)
 
-        if check_vertex_cover(new_solution, E) == False:
-            print("NE VALJA1")
-            sys.exit(0)
-
-        end_time = time.time()
-
-        print(len(population), "Vrijeme: ", end_time - start_time)
-
-
-        start_time = time.time()
-        if new_solution not in population: # TODO: ovo bi moglo biti sporo
+        if new_solution not in population:
             population.append(new_solution)
-        end_time = time.time()
-        print(len(population), "Unique check: ", end_time - start_time)
 
     return population
 
@@ -264,14 +334,17 @@ def replace_worst_solution(population, new_solution, W):
 
     population[worst_solution_index] = new_solution
 
-def binary_tournament_selection(population, W):
+def binary_tournament_selection(population, W, p_better = 0.8):
     a, b = random.sample(population, k = 2)
 
     fitness_a, fitness_b = calculate_fitness(a, W), calculate_fitness(b, W)
 
+    if random.random() > p_better:
+        return b if fitness_a > fitness_b else a
+
     return a if fitness_a > fitness_b else b
 
-def mutate(solution, WDR_list, average_WDR, p_m = 0.1): #TODO: p_m=???
+def mutate(solution, WDR_list, average_WDR, p_m = 0.05): #TODO: p_m=???
     for i in range(len(solution)):
         if solution[i] == 1:
             if random.random() < p_m:
@@ -294,16 +367,12 @@ def crossover(parent_1, parent_2): # TODO: jos dodati random
 
     return child
 
-def genetic_algorithm(E, W, n = 4, p_c = 0.5, max_gen = 10): #TODO: p_c je kompliciraniji
+def genetic_algorithm(E, W, n = 20, p_c = 0.9, max_gen = 100): #TODO: p_c je kompliciraniji
     population = generate_initial_population(n, E, W)
 
     current_best = find_best_solution(population, W)
     WDR_list = [W[i] / degree(i, E) for i in range(len(E))]
     avg_WDR = sum(WDR_list) / len(E)
-
-    if [check_vertex_cover(state, E) for state in population].count(False) > 0:
-        print("NE VALJA")
-        sys.exit(0)
 
     gen = 0
     while gen < max_gen:
