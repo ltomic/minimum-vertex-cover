@@ -2,6 +2,7 @@
 # python minimumVertexCover.py ./data/facebook_combined.txt
 import random
 import time
+import matplotlib.pyplot as plt
 
 import sys
 
@@ -63,6 +64,7 @@ class GeneticAlgorithm:
         avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
+        best_by_iteration = []
         while gen < self.n_gen:
             print("generation: ", gen)
             if random.random() < self.p_c:
@@ -71,7 +73,7 @@ class GeneticAlgorithm:
 
                 new_solution = self.mutate(self.crossover(p1, p2), WDR_list, avg_WDR)
             else:
-                new_solution = self.generate_random_solution(len(self.E))
+                new_solution = self.generate_random_solution()
 
             new_solution = self.reduction(self.repair(new_solution))
 
@@ -83,7 +85,9 @@ class GeneticAlgorithm:
                 if self.calculate_fitness(new_solution) < self.calculate_fitness(current_best):
                     current_best = new_solution
 
-        return current_best
+                best_by_iteration.append(current_best)
+
+        return current_best, best_by_iteration
 
     def degree(self, x):
         return len(self.E[x])
@@ -409,18 +413,30 @@ class GeneticAlgorithm:
 
         return child
 
+def plot_results_by_iteration(best_by_iteration):
+    fig, ax = plt.subplots()
+
+    ax.plot(range(len(best_by_iteration)), best_by_iteration, linewidth = 2.0)
+
+    plt.show()
+
+
 if __name__ == "__main__":
     filename = sys.argv[1]
 
     with open(filename, 'r') as input_file:
         W, E = readData(input_file)
 
-    population_size = 10
-    n_gen = 10
+    population_size = 100
+    n_gen = 100
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen,
             p_c = 0.9, p_h = 0.2, p_m = 0.05, p_better = 0.8)
 
-    solution = algorithm.run()
+    solution, best_by_iteration = algorithm.run()
 
     print(algorithm.calculate_fitness(solution))
     print(algorithm.check_vertex_cover(solution))
+
+    plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
+            in best_by_iteration])
+
