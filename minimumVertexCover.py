@@ -6,45 +6,20 @@ import matplotlib.pyplot as plt
 
 import sys
 
-def readEdges(input_file):
-    edges = set()
+import dimacs
 
-    while True:
-        line = input_file.readline()
-
-        if line == "":
-            break
-
-        line = line.split(" ")
-
-        vertex_a, vertex_b = int(line[0]), int(line[1])
-
-        if vertex_a > vertex_b:
-            vertex_a, vertex_b = vertex_b, vertex_a
-
-        edges.add((vertex_a, vertex_b))
-
-    return edges
-
-
-def readData(input_file):  #uvesti podatke iz .txt
-    edges = readEdges(input_file)
-
-    num_vertex = max([max(a, b) for a, b in edges])+1
-    W = [1] * num_vertex # TODO: poslije dodati citanje tezina, ako je potrebno
-
-    E = [[] for i in range(num_vertex)]
+def createNeighborList(edges, num_nodes):
+    E = [set() for i in range(num_nodes)]
 
     for vertex_a, vertex_b in edges:
-        E[vertex_a].append(vertex_b)
-        E[vertex_b].append(vertex_a)
+        E[vertex_a].add(vertex_b)
+        E[vertex_b].add(vertex_a)
 
-    return W, E # B, W, DOBRO BI NAM DOSAO INTEGER BROJ VRHOVA (UMJESTO LEN() KASNIJE)
-
+    return E
 
 class GeneticAlgorithm:
 
-    def __init__(self, E, W, population_size, n_gen, p_c, p_h, p_m, p_better):
+    def __init__(self, E, W, population_size, n_gen, p_c, p_h, p_m, p_sc, p_better):
         self.E = E
         self.W = W
 
@@ -54,6 +29,9 @@ class GeneticAlgorithm:
         self.p_c = p_c
         self.p_h = p_h
         self.p_m = p_m
+        # probability with which the vertex having the
+        # maximum ratio of weight to degree is selected
+        self.p_sc = p_sc
         self.p_better = p_better
 
     def run(self):
@@ -254,12 +232,8 @@ class GeneticAlgorithm:
                                     find_covered_vertices_start_time
         vertices_wdr = self.calculate_weight_degree_ratios(covered_vertices)
 
-        # probability with which the vertex having the
-        # maximum ratio of weight to degree is selected
-        # TODO: namjestiti kao parametar
-        p_sc = 0.5
         while len(covered_vertices) > 0:
-            if random.random() <= p_sc:
+            if random.random() <= self.p_sc:
                 vertex_to_remove = self.find_vertex_with_highest_weight_degree_ratio(covered_vertices, vertices_wdr)
             else:                       #ovako Singh izbaci random vrh ako ne izbaci najgori
                 # TODO: mozda promjeniti covered_vertices u list jer ovo traje O(n)
@@ -386,9 +360,9 @@ class GeneticAlgorithm:
         fitness_a, fitness_b = self.calculate_fitness(a), self.calculate_fitness(b)
 
         if random.random() > self.p_better:
-            return b if fitness_a > fitness_b else a
+            return b if fitness_a < fitness_b else a
 
-        return a if fitness_a > fitness_b else b
+        return a if fitness_a < fitness_b else b
 
     def mutate(self, solution, WDR_list, average_WDR):
         for i in range(len(solution)):
@@ -414,6 +388,8 @@ class GeneticAlgorithm:
         return child
 
 def plot_results_by_iteration(best_by_iteration):
+    # TODO: add types of points on graph based on how the new best by iteration
+    #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
 
     ax.plot(range(len(best_by_iteration)), best_by_iteration, linewidth = 2.0)
@@ -425,12 +401,14 @@ if __name__ == "__main__":
     filename = sys.argv[1]
 
     with open(filename, 'r') as input_file:
-        W, E = readData(input_file)
+        W, edges = dimacs.readData(input_file)
 
-    population_size = 100
-    n_gen = 100
+    E = createNeighborList(edges, len(W))
+
+    population_size = 10
+    n_gen = 5000
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen,
-            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_better = 0.8)
+            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.5, p_better = 0.8)
 
     solution, best_by_iteration = algorithm.run()
 
