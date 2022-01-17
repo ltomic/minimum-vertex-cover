@@ -400,7 +400,8 @@ def plot_results_by_iteration(best_by_iteration):
     plt.show()
 
 
-def boom(filename, population_size, n_gen, random_weights):
+
+def main(filename, population_size, n_gen, random_weights):
 
     with open(filename, 'r') as input_file:
         W, edges = dimacs_random.readData(input_file, random_weights)
@@ -409,7 +410,7 @@ def boom(filename, population_size, n_gen, random_weights):
 
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen,
             p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.5,
-            p_better = 0.8, p_u = 0.8)
+                                 p_better = 0.8, p_u = 0.8)
 
     solution, best_by_iteration = algorithm.run()
 
@@ -420,41 +421,3 @@ def boom(filename, population_size, n_gen, random_weights):
             in best_by_iteration])
 
 
-folder = 'datasets'
-filelist = [fname for fname in os.listdir(folder)]
-
-top = tk.Tk(className = 'Minimum vertex cover')
-
-f = tkf.Font(family='Helvetica', size=20, weight='bold')
-
-random_weights = tk.IntVar()
-filename = tk.StringVar()
-population_size = tk.IntVar()
-n_gen = tk.IntVar()
-
-w = tk.Checkbutton(top, text = "Generate random weights",
-                   font = '20', pady = 50, variable = random_weights)
-lp = tk.Label(top, text = "Population:", font = '20',
-              pady = 15)
-lg = tk.Label(top, text = "Generations:", font = '20',
-              pady = 15)
-p = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
-g = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
-lm = tk.Label(top, text = 'Choose a graph', font = '20')
-optmenu = tkk.Combobox(top, values=filelist,
-                       state='readonly')
-b = tk.Button(top, text = "Begin!", font = f,
-              height = 20, width = 20, bg = 'black', fg = 'white',
-              command = lambda: boom("datasets/" + optmenu.get(), int(p.get()),
-                                     int(g.get()), random_weights.get()))
-
-lm.pack()
-optmenu.pack(fill='x')
-lp.pack()
-p.pack()
-lg.pack()
-g.pack()
-w.pack()
-b.pack(side = tk.BOTTOM)
-top.geometry('400x400')
-top.mainloop()

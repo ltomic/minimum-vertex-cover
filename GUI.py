@@ -3,8 +3,7 @@ import sys
 import tkinter as tk
 import tkinter.font as tkf
 import tkinter.ttk as tkk
-import minimumVertexCover
-import runpy
+import MVC
 
 folder = 'datasets'
 filelist = [fname for fname in os.listdir(folder)]
@@ -31,7 +30,9 @@ optmenu = tkk.Combobox(top, values=filelist,
                        state='readonly')
 b = tk.Button(top, text = "Begin!", font = f,
               height = 20, width = 20, bg = 'black', fg = 'white',
-              command = lambda: runpy.run_path("minimumVertexCover.py"))
+              command = lambda:MVC.main(
+                  "datasets/" + optmenu.get(),
+                  int(p.get()), int(g.get()), random_weights.get()))
 
 lm.pack()
 optmenu.pack(fill='x')
