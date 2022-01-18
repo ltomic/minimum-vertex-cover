@@ -415,9 +415,9 @@ def plot_results_by_iteration(best_by_iteration, solution_geneses):
 
     for i in range(len(best_by_iteration)):
         if(solution_geneses[i] == 1):
-            ax.plot(i, best_by_iteration[i], 'go', color = 'red')
+            ax.plot(i, best_by_iteration[i], 'ro')
         elif(solution_geneses[i] == 0):
-            ax.plot(i, best_by_iteration[i], 'go', color = 'green')
+            ax.plot(i, best_by_iteration[i], 'go')
     print(solution_geneses)
     plt.show()
 
