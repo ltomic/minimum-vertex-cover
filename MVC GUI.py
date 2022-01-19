@@ -415,7 +415,7 @@ def plot_results_by_iteration(best_by_iteration, solution_geneses,
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
-            
+
     ax.plot(range(len(best_by_iteration)), best_by_iteration, linewidth = 2.0)
 
     for i in range(len(best_by_iteration)):
@@ -448,7 +448,7 @@ def boom(filename, population_size, n_gen, random_weights, time_limit):
 
     E = createNeighborList(edges, len(W))
 
-    algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit, 
+    algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit,
             p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
             p_better = 0.8, p_u = 0.8)
 
@@ -468,7 +468,7 @@ def boom(filename, population_size, n_gen, random_weights, time_limit):
 
 
 folder = 'datasets'
-filelist = [fname for fname in os.listdir(folder)]
+filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
 
 top = tk.Tk(className = 'Minimum vertex cover')
 
