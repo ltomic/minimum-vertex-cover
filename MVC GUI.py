@@ -45,7 +45,7 @@ class GeneticAlgorithm:
 
         current_best = self.find_best_solution(population)
         genesis = 1
-        WDR_list = [self.W[i] / self.degree(i) for i in range(len(self.E))]
+        WDR_list = [self.W[i] / self.degree(i) if self.degree(i) > 0 else float('inf') for i in range(len(self.E))]
         avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
@@ -82,9 +82,11 @@ class GeneticAlgorithm:
                 best_by_iteration.append(current_best)
                 solution_geneses.append(genesis)
             check_time = time.time()
-            if((check_time - stopwatch) > self.time_limit): break
+            if((check_time - stopwatch) > self.time_limit):
+                gen -= 1
+                break
 
-        return current_best, best_by_iteration, solution_geneses
+        return current_best, best_by_iteration, solution_geneses, gen
 
     def degree(self, x):
         return len(self.E[x])
@@ -211,7 +213,7 @@ class GeneticAlgorithm:
 
 
     def find_covered_vertices(self, solution):
-        return set([i for i in range(len(self.E)) if self.check_covered_vertex(i, solution)])
+        return set([i for i in range(len(self.E)) if (self.check_covered_vertex(i, solution) and self.degree(i) > 0)])
 
     def find_vertex_with_highest_weight_degree_ratio(self, covered_vertices, ratios):
         while ratios[-1][0] not in covered_vertices:
@@ -389,7 +391,7 @@ class GeneticAlgorithm:
                 if random.random() < self.p_m:
                     solution[i] = 0
             else:
-                if random.random() < self.p_m and WDR_list[i] < average_WDR:  #redoslijed oko and?
+                if random.random() < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
                     solution[i] = 1
 
         return solution
@@ -406,7 +408,9 @@ class GeneticAlgorithm:
 
         return child
 
-def plot_results_by_iteration(best_by_iteration, solution_geneses):
+def plot_results_by_iteration(best_by_iteration, solution_geneses,
+                              poptext, nodestext, edgestext, cover_sizetext,
+                              gentext, weighttext, timetext, graphtext):
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
@@ -418,11 +422,24 @@ def plot_results_by_iteration(best_by_iteration, solution_geneses):
             ax.plot(i, best_by_iteration[i], 'ro')
         elif(solution_geneses[i] == 0):
             ax.plot(i, best_by_iteration[i], 'go')
-    print(solution_geneses)
+    text = """Population size: {}
+Nodes: {}
+Edges: {}
+Cover size: {}
+Generations: {}
+Weight: {}
+Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, cover_sizetext,
+                               gentext, weighttext, timetext)
+    plt.text(0.8, 0.80, text,
+             horizontalalignment = 'center',
+             verticalalignment = 'center', transform = ax.transAxes)
+    plt.xlabel(graphtext)
     plt.show()
 
 
 def boom(filename, population_size, n_gen, random_weights, time_limit):
+
+    program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
         W, edges = dimacs_random.readData(input_file, random_weights)
@@ -430,16 +447,22 @@ def boom(filename, population_size, n_gen, random_weights, time_limit):
     E = createNeighborList(edges, len(W))
 
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit, 
-            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.5,
+            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
             p_better = 0.8, p_u = 0.8)
 
-    solution, best_by_iteration, solution_geneses = algorithm.run()
+    solution, best_by_iteration, solution_geneses, n_gen = algorithm.run()
 
     print(algorithm.calculate_fitness(solution))
     print(algorithm.check_vertex_cover(solution))
 
+    program_end_time = time.time()
+
     plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
-            in best_by_iteration], solution_geneses)
+            in best_by_iteration], solution_geneses, population_size,
+                              len(W), len(edges), solution.count(1),
+                              n_gen, algorithm.calculate_fitness(solution),
+                              program_end_time - program_start_time,
+                              filename[1+filename.index('/'):])
 
 
 folder = 'datasets'
@@ -447,30 +470,34 @@ filelist = [fname for fname in os.listdir(folder)]
 
 top = tk.Tk(className = 'Minimum vertex cover')
 
-f = tkf.Font(family='Helvetica', size=20, weight='bold')
+f1 = tkf.Font(family = 'Helvetica', size = 20, weight = 'bold')
+f2 = tkf.Font(family = 'Helvetica', size = 15)
 
 random_weights = tk.IntVar()
 
 w = tk.Checkbutton(top, text = "Generate random weights",
-                   font = '20', pady = 30, variable = random_weights)
-lp = tk.Label(top, text = "Population:", font = '20',
-              pady = 15)
-lg = tk.Label(top, text = "Generations:", font = '20',
-              pady = 15)
-lt = tk.Label(top, text = "Time limit (seconds)", font = '20',
-              pady = 15)
+                   font = f2, pady = 10, variable = random_weights)
+lp = tk.Label(top, text = "Population:", font = f2,
+              pady = 10)
+lg = tk.Label(top, text = "Generations:", font = f2,
+              pady = 10)
+lt = tk.Label(top, text = "Time limit (seconds)", font = f2,
+              pady = 10)
 p = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 g = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 t = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
-lm = tk.Label(top, text = 'Choose a graph', font = '20')
+lm = tk.Label(top, text = 'Choose a graph', font = f2)
 optmenu = tkk.Combobox(top, values=filelist,
                        state='readonly')
-b = tk.Button(top, text = "Begin!", font = f,
-              height = 20, width = 20, bg = 'black', fg = 'white',
+b = tk.Button(top, text = "Begin!", font = f1,
+              height = 2, width = 20, bg = 'black', fg = 'white',
               command = lambda: boom("datasets/" + optmenu.get(), int(p.get()),
                                      int(g.get()) if len(g.get()) else float('inf'),
                                      random_weights.get(),
                                      int(t.get()) if len(t.get()) else float('inf')))
+
+exit_b = tk.Button(top, text = "Exit", font = f2, height = 1, width = 10,
+                   command = top.destroy)
 
 lm.pack()
 optmenu.pack(fill='x')
@@ -481,6 +508,7 @@ g.pack()
 lt.pack()
 t.pack()
 w.pack()
-b.pack(side = tk.BOTTOM)
+b.pack(pady = 30)
+exit_b.pack()
 top.geometry('400x500')
 top.mainloop()
