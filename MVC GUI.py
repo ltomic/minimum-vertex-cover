@@ -409,8 +409,9 @@ class GeneticAlgorithm:
         return child
 
 def plot_results_by_iteration(best_by_iteration, solution_geneses,
-                              poptext, nodestext, edgestext, cover_sizetext,
-                              gentext, weighttext, timetext, graphtext):
+                              poptext, nodestext, edgestext, masstext,
+                              cover_sizetext, gentext, weighttext,
+                              timetext, graphtext):
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
@@ -425,11 +426,12 @@ def plot_results_by_iteration(best_by_iteration, solution_geneses,
     text = """Population size: {}
 Nodes: {}
 Edges: {}
+Weights: {}
 Cover size: {}
+Cover weight: {}
 Generations: {}
-Weight: {}
-Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, cover_sizetext,
-                               gentext, weighttext, timetext)
+Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, masstext,
+                               cover_sizetext, weighttext, gentext, timetext)
     plt.text(0.8, 0.80, text,
              horizontalalignment = 'center',
              verticalalignment = 'center', transform = ax.transAxes)
@@ -459,7 +461,7 @@ def boom(filename, population_size, n_gen, random_weights, time_limit):
 
     plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
             in best_by_iteration], solution_geneses, population_size,
-                              len(W), len(edges), solution.count(1),
+                              len(W), len(edges), sum(W), solution.count(1),
                               n_gen, algorithm.calculate_fitness(solution),
                               program_end_time - program_start_time,
                               filename[1+filename.index('/'):])
