@@ -312,10 +312,7 @@ class GeneticAlgorithm:
             if ratio > max_ratio and (random.random() < self.p_u or max_ratio == -1):
                 max_ratio = ratio
                 sol = i
-        if sol > -1:
-            return sol
-        else:
-            return self.find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt, vertices)
+        return sol
 
     def check_vertex_cover(self, solution):
         for i in range(len(solution)):
