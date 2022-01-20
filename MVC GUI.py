@@ -164,7 +164,7 @@ class GeneticAlgorithm:
 
         end_time = time.time()
 
-        print("Time first repair: ", end_time - start_time)
+        print("Time first repair: ", end_time - start_time, "iterations:", it)
         return solution
 
     def second_repair_heuristic(self, solution):
@@ -173,7 +173,9 @@ class GeneticAlgorithm:
 
         uncovered_edges_cnt = self.calculate_uncovered_edges_for_all_vertices(solution)
 
+        it = 0
         while self.check_vertex_cover(solution) == False:
+            it += 1
             v = random.choice(list(vertices_not_in_solution))
             A = [i for i in self.E[v] if solution[i] == 0]
             A.append(v)
@@ -190,7 +192,7 @@ class GeneticAlgorithm:
 
         end_time = time.time()
 
-        print("Time second repair: ", end_time - start_time)
+        print("Time second repair: ", end_time - start_time, "iterations:", it)
 
         return solution
 
@@ -253,7 +255,9 @@ class GeneticAlgorithm:
                                     find_covered_vertices_start_time
         vertices_wdr = self.calculate_weight_degree_ratios(covered_vertices)
 
+        it = 0
         while len(covered_vertices) > 0:
+            it += 1
             if random.random() <= self.p_sc:
                 vertex_to_remove = self.find_vertex_with_highest_weight_degree_ratio(covered_vertices, vertices_wdr)
             else:                       #ovako Singh izbaci random vrh ako ne izbaci najgori
@@ -276,7 +280,7 @@ class GeneticAlgorithm:
         print("Find covered vertices time:", find_covered_vertices_time)
         reduction_end_time = time.time()
 
-        print("Reduction time:", reduction_end_time - reduction_start_time)
+        print("Reduction time:", reduction_end_time - reduction_start_time, " iterations:", it)
         return solution
 
     def calculate_uncovered_edges_cnt(self, solution, x):
@@ -308,7 +312,7 @@ class GeneticAlgorithm:
         for i in vertices:
             ratio = uncovered_edges_cnt[i] / self.W[i]
 
-            if ratio > max_ratio and random.random() < self.p_u: # TODO: jos dodati tu random
+            if ratio > max_ratio and (random.random() < self.p_u or max_ratio == -1):
                 max_ratio = ratio
                 sol = i
 
