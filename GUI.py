@@ -6,33 +6,38 @@ import tkinter.ttk as tkk
 import MVC
 
 folder = 'datasets'
-filelist = [fname for fname in os.listdir(folder)]
+filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
 
 top = tk.Tk(className = 'Minimum vertex cover')
 
-f = tkf.Font(family='Helvetica', size=20, weight='bold')
+f1 = tkf.Font(family = 'Helvetica', size = 20, weight = 'bold')
+f2 = tkf.Font(family = 'Helvetica', size = 15)
 
 random_weights = tk.IntVar()
-filename = tk.StringVar()
-population_size = tk.IntVar()
-n_gen = tk.IntVar()
 
 w = tk.Checkbutton(top, text = "Generate random weights",
-                   font = '20', pady = 50, variable = random_weights)
-lp = tk.Label(top, text = "Population:", font = '20',
-              pady = 15)
-lg = tk.Label(top, text = "Generations:", font = '20',
-              pady = 15)
+                   font = f2, pady = 10, variable = random_weights)
+lp = tk.Label(top, text = "Population:", font = f2,
+              pady = 10)
+lg = tk.Label(top, text = "Generations:", font = f2,
+              pady = 10)
+lt = tk.Label(top, text = "Time limit (seconds)", font = f2,
+              pady = 10)
 p = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 g = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
-lm = tk.Label(top, text = 'Choose a graph', font = '20')
+t = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
+lm = tk.Label(top, text = 'Choose a graph', font = f2)
 optmenu = tkk.Combobox(top, values=filelist,
                        state='readonly')
-b = tk.Button(top, text = "Begin!", font = f,
-              height = 20, width = 20, bg = 'black', fg = 'white',
-              command = lambda:MVC.main(
-                  "datasets/" + optmenu.get(),
-                  int(p.get()), int(g.get()), random_weights.get()))
+b = tk.Button(top, text = "Begin!", font = f1,
+              height = 2, width = 20, bg = 'black', fg = 'white',
+              command = lambda: MVC.main("datasets/" + optmenu.get(), int(p.get()),
+                                     int(g.get()) if len(g.get()) else float('inf'),
+                                     random_weights.get(),
+                                     int(t.get()) if len(t.get()) else float('inf')))
+
+exit_b = tk.Button(top, text = "Exit", font = f2, height = 1, width = 10,
+                   command = top.destroy)
 
 lm.pack()
 optmenu.pack(fill='x')
@@ -40,8 +45,11 @@ lp.pack()
 p.pack()
 lg.pack()
 g.pack()
+lt.pack()
+t.pack()
 w.pack()
-b.pack(side = tk.BOTTOM)
-top.geometry('400x400')
+b.pack(pady = 30)
+exit_b.pack()
+top.geometry('400x500')
 top.mainloop()
 

@@ -1,14 +1,11 @@
 import random
 import time
 import matplotlib.pyplot as plt
-import tkinter as tk
-import tkinter.font as tkf
-import tkinter.ttk as tkk
 
 import sys
-import os
 
 import dimacs_random
+
 
 def createNeighborList(edges, num_nodes):
     E = [set() for i in range(num_nodes)]
@@ -21,7 +18,8 @@ def createNeighborList(edges, num_nodes):
 
 class GeneticAlgorithm:
 
-    def __init__(self, E, W, population_size, n_gen, p_c, p_h, p_m, p_sc, p_better, p_u):
+    def __init__(self, E, W, population_size, n_gen, time_limit, p_c, p_h, p_m, p_sc,
+                 p_better, p_u):
         self.E = E
         self.W = W
 
@@ -36,16 +34,21 @@ class GeneticAlgorithm:
         self.p_sc = p_sc
         self.p_better = p_better
         self.p_u = p_u
+        self.time_limit = time_limit
 
     def run(self):
+
         population = self.generate_initial_population()
 
         current_best = self.find_best_solution(population)
-        WDR_list = [self.W[i] / self.degree(i) for i in range(len(self.E))]
+        genesis = 1
+        WDR_list = [self.W[i] / self.degree(i) if self.degree(i) > 0 else float('inf') for i in range(len(self.E))]
         avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
-        best_by_iteration = []
+        best_by_iteration = [current_best]
+        solution_geneses = [1]
+        stopwatch = time.time()
         while gen < self.n_gen:
             print("generation: ", gen)
             if random.random() < self.p_c:
@@ -53,8 +56,10 @@ class GeneticAlgorithm:
                 p2 = self.binary_tournament_selection(population)
 
                 new_solution = self.mutate(self.crossover(p1, p2), WDR_list, avg_WDR)
+                flag = 0
             else:
                 new_solution = self.generate_random_solution()
+                flag = 1
 
             new_solution = self.reduction(self.repair(new_solution))
 
@@ -65,10 +70,20 @@ class GeneticAlgorithm:
 
                 if self.calculate_fitness(new_solution) < self.calculate_fitness(current_best):
                     current_best = new_solution
+                    if(flag):
+                        genesis = 1
+                    else:
+                        genesis = 0
+                else: genesis = -1
 
                 best_by_iteration.append(current_best)
+                solution_geneses.append(genesis)
+            check_time = time.time()
+            if((check_time - stopwatch) > self.time_limit):
+                gen -= 1
+                break
 
-        return current_best, best_by_iteration
+        return current_best, best_by_iteration, solution_geneses, gen
 
     def degree(self, x):
         return len(self.E[x])
@@ -195,7 +210,7 @@ class GeneticAlgorithm:
 
 
     def find_covered_vertices(self, solution):
-        return set([i for i in range(len(self.E)) if self.check_covered_vertex(i, solution)])
+        return set([i for i in range(len(self.E)) if (self.check_covered_vertex(i, solution) and self.degree(i) > 0)])
 
     def find_vertex_with_highest_weight_degree_ratio(self, covered_vertices, ratios):
         while ratios[-1][0] not in covered_vertices:
@@ -293,8 +308,10 @@ class GeneticAlgorithm:
             if ratio > max_ratio and random.random() < self.p_u: # TODO: jos dodati tu random
                 max_ratio = ratio
                 sol = i
-
-        return sol
+        if sol > -1:
+            return sol
+        else:
+            return self.find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt, vertices)
 
     def check_vertex_cover(self, solution):
         for i in range(len(solution)):
@@ -356,6 +373,7 @@ class GeneticAlgorithm:
         worst_solution_index = self.find_worst_solution_index(population)
 
         population[worst_solution_index] = new_solution
+        
 
     def binary_tournament_selection(self, population):
         a, b = random.sample(population, k = 2)
@@ -373,7 +391,7 @@ class GeneticAlgorithm:
                 if random.random() < self.p_m:
                     solution[i] = 0
             else:
-                if random.random() < self.p_m and WDR_list[i] < average_WDR:  #redoslijed oko and?
+                if random.random() < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
                     solution[i] = 1
 
         return solution
@@ -390,34 +408,59 @@ class GeneticAlgorithm:
 
         return child
 
-def plot_results_by_iteration(best_by_iteration):
+def plot_results_by_iteration(best_by_iteration, solution_geneses,
+                              poptext, nodestext, edgestext, masstext,
+                              cover_sizetext, gentext, weighttext,
+                              timetext, graphtext):
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
 
     ax.plot(range(len(best_by_iteration)), best_by_iteration, linewidth = 2.0)
-
+    for i in range(len(best_by_iteration)):
+        if(solution_geneses[i] == 1):
+            ax.plot(i, best_by_iteration[i], 'r.')
+        elif(solution_geneses[i] == 0):
+            ax.plot(i, best_by_iteration[i], 'g.')
+    text = """Population size: {}
+Edges: {}
+Nodes: {}
+Cover size: {}
+Weights: {}
+Cover weight: {}
+Generations: {}
+Time: {:.3f} seconds""".format(poptext, edgestext, nodestext, cover_sizetext,
+                               masstext, weighttext, gentext, timetext)
+    plt.text(0.8, 0.8, text,
+             horizontalalignment = 'center',
+             verticalalignment = 'center', transform = ax.transAxes)
+    plt.xlabel(graphtext)
     plt.show()
 
 
+def main(filename, population_size, n_gen, random_weights, time_limit):
 
-def main(filename, population_size, n_gen, random_weights):
+    program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
         W, edges = dimacs_random.readData(input_file, random_weights)
 
     E = createNeighborList(edges, len(W))
 
-    algorithm = GeneticAlgorithm(E, W, population_size, n_gen,
-            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.5,
-                                 p_better = 0.8, p_u = 0.8)
+    algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit,
+            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
+            p_better = 0.8, p_u = 0.8)
 
-    solution, best_by_iteration = algorithm.run()
+    solution, best_by_iteration, solution_geneses, n_gen = algorithm.run()
 
     print(algorithm.calculate_fitness(solution))
     print(algorithm.check_vertex_cover(solution))
 
+    program_end_time = time.time()
+
     plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
-            in best_by_iteration])
-
-
+            in best_by_iteration], solution_geneses, population_size,
+                              len(W), len(edges), sum(W), solution.count(1),
+                              n_gen, algorithm.calculate_fitness(solution),
+                              program_end_time - program_start_time,
+                              filename[1+filename.index('/'):])
