@@ -19,6 +19,63 @@ def createNeighborList(edges, num_nodes):
 
     return E
 
+class GraphReduction:
+
+    def __init__(self, E, W):
+        self.E = E
+        self.W = W
+        self.reduction_weight = 0
+
+    def degree(self, x):
+        return len(list(self.neighbours(x)))
+
+    def neighbours(self, x):
+        return (v for v in self.E[x] if self.covered[v] != 1)
+
+    def degree_zero_rule(self):
+        flag = False
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            if self.degree(i) == 0:
+                self.covered[i] = 1
+                flag = True
+
+        return flag
+
+    def adjacent_rule(self):
+        flag = False
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            neigh_weight = sum(self.W[v] for v in self.neighbours(i))
+            if self.W[i] >= neigh_weight:
+                for v in self.neighbours(i):
+                    self.covered[v] = 1
+
+                self.reduction_weight += neigh_weight
+                flag = True
+
+        return flag
+
+    def run(self):
+        self.covered = [0 for i in range(len(self.W))]
+
+        flag = True
+        while flag:
+            flag = False
+
+            flag |= self.degree_zero_rule()
+            flag |= self.adjacent_rule()
+            #flag |= self.degree_one_rule()
+
+        print(sum(self.covered), len(self.covered), len(self.covered) - sum(self.covered))
+
+        return self.E, self.W
+
 class GeneticAlgorithm:
 
     def __init__(self, E, W, population_size, n_gen, time_limit, p_c, p_h, p_m, p_sc,
@@ -26,20 +83,34 @@ class GeneticAlgorithm:
         self.E = E
         self.W = W
 
+        self.check_bidirectional_graph()
+
         self.n = population_size
         self.n_gen = n_gen
 
+        # probability of crossover, else random solution generated
         self.p_c = p_c
+        # probability of first repair procedure, else second repair procedure
         self.p_h = p_h
+        # probability of mutation, 0 is set to 1 with additional condition of
+        # weigth/degree ration less than average weight/degree ratio of all vertices
         self.p_m = p_m
         # probability with which the vertex having the
         # maximum ratio of weight to degree is selected
         self.p_sc = p_sc
+        # probability with which the solution with better fitness is selected during
+        # binary tournament selection
         self.p_better = p_better
         self.p_u = p_u
         self.time_limit = time_limit
 
+    def check_bidirectional_graph(self):
+        for v, N in enumerate(self.E):
+            for w in N:
+                assert v in self.E[w]
+
     def run(self):
+        self.E, self.W = GraphReduction(self.E, self.W).run()
 
         population = self.generate_initial_population()
 
@@ -52,6 +123,8 @@ class GeneticAlgorithm:
         best_by_iteration = []
         solution_geneses = [1]
         stopwatch = time.time()
+
+        fails = 0
         while gen < self.n_gen:
             print("generation: ", gen)
             if random.random() < self.p_c:
@@ -81,6 +154,12 @@ class GeneticAlgorithm:
 
                 best_by_iteration.append(current_best)
                 solution_geneses.append(genesis)
+                fails = 0
+            else:
+                fails += 1
+
+                if fails == 10:
+                    break
             check_time = time.time()
             if((check_time - stopwatch) > self.time_limit):
                 gen -= 1
@@ -95,12 +174,19 @@ class GeneticAlgorithm:
         print("Generate initial population")
         population = []
 
+        fails = 0
         while len(population) < self.n:
             new_solution = self.generate_solution()
 
-            if new_solution not in population:
-                population.append(new_solution)
+            if new_solution in population:
+                fails += 1
+                if fails == 10:
+                    break
 
+            population.append(new_solution)
+            fails = 0
+
+        self.n = len(population) # if generating self.n unique solutions failed
         return population
 
     def generate_solution(self):
@@ -182,9 +268,9 @@ class GeneticAlgorithm:
 
             s = self.find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt, A)
 
-            solution[v] = 1
-            vertices_not_in_solution.remove(v)
-            self.update_uncovered_edges_cnt(uncovered_edges_cnt, solution, v)
+            solution[s] = 1
+            vertices_not_in_solution.remove(s)
+            self.update_uncovered_edges_cnt(uncovered_edges_cnt, solution, s)
 
         if self.check_vertex_cover(solution) == False:
             print("Second repair does not return vertex cover")
@@ -306,13 +392,16 @@ class GeneticAlgorithm:
         return uncovered_edges_cnt
 
     def find_vertex_with_largest_uncovered_edge_weight_ratio(self, uncovered_edges_cnt, vertices):
-        sol = -1
+        sol = list(vertices)[0]
         max_ratio = -1
 
         for i in vertices:
-            ratio = uncovered_edges_cnt[i] / self.W[i]
+            if self.W[i] == 0:
+                return i
+            else:
+                ratio = uncovered_edges_cnt[i] / self.W[i]
 
-            if ratio > max_ratio and (random.random() < self.p_u or max_ratio == -1):
+            if ratio > max_ratio:
                 max_ratio = ratio
                 sol = i
 
@@ -391,11 +480,12 @@ class GeneticAlgorithm:
 
     def mutate(self, solution, WDR_list, average_WDR):
         for i in range(len(solution)):
+            rand = random.random()
             if solution[i] == 1:
-                if random.random() < self.p_m:
+                if rand < self.p_m:
                     solution[i] = 0
             else:
-                if random.random() < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
+                if rand < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
                     solution[i] = 1
 
         return solution
@@ -443,18 +533,18 @@ Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, masstext,
     plt.show()
 
 
-def boom(filename, population_size, n_gen, random_weights, time_limit):
+def boom(filename, population_size, n_gen, generate_weights, time_limit):
 
     program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
-        W, edges = dimacs_random.readData(input_file, random_weights)
+        W, edges = dimacs_random.readData(input_file, generate_weights)
 
     E = createNeighborList(edges, len(W))
 
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit,
-            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
-            p_better = 0.8, p_u = 0.8)
+            p_c = 0.95, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
+            p_better = 1, p_u = 0.95)
 
     solution, best_by_iteration, solution_geneses, n_gen = algorithm.run()
 
@@ -473,33 +563,30 @@ def boom(filename, population_size, n_gen, random_weights, time_limit):
 
 folder = 'datasets'
 filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
+font_family = 'Helvetica'
 
 top = tk.Tk(className = 'Minimum vertex cover')
 
-f1 = tkf.Font(family = 'Helvetica', size = 20, weight = 'bold')
-f2 = tkf.Font(family = 'Helvetica', size = 15)
+f1 = tkf.Font(family = font_family, size = 20, weight = 'bold')
+f2 = tkf.Font(family = font_family, size = 15)
 
-random_weights = tk.IntVar()
+generate_weights = tk.IntVar()
 
-w = tk.Checkbutton(top, text = "Generate random weights",
-                   font = f2, pady = 10, variable = random_weights)
-lp = tk.Label(top, text = "Population:", font = f2,
-              pady = 10)
-lg = tk.Label(top, text = "Generations:", font = f2,
-              pady = 10)
-lt = tk.Label(top, text = "Time limit (seconds)", font = f2,
-              pady = 10)
+w = tk.Checkbutton(top, text = "Generate weights",
+                   font = f2, pady = 10, variable = generate_weights)
+lp = tk.Label(top, text = "Population:", font = f2, pady = 10)
+lg = tk.Label(top, text = "Generations:", font = f2, pady = 10)
+lt = tk.Label(top, text = "Time limit (seconds)", font = f2, pady = 10)
 p = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 g = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 t = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 lm = tk.Label(top, text = 'Choose a graph', font = f2)
-optmenu = tkk.Combobox(top, values=filelist,
-                       state='readonly')
+optmenu = tkk.Combobox(top, values=filelist, state='readonly')
 b = tk.Button(top, text = "Begin!", font = f1,
               height = 2, width = 20, bg = 'black', fg = 'white',
               command = lambda: boom("datasets/" + optmenu.get(), int(p.get()),
                                      int(g.get()) if len(g.get()) else float('inf'),
-                                     random_weights.get(),
+                                     generate_weights.get(),
                                      int(t.get()) if len(t.get()) else float('inf')))
 
 exit_b = tk.Button(top, text = "Exit", font = f2, height = 1, width = 10,
