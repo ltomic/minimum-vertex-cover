@@ -33,16 +33,14 @@ class GraphReduction:
         return (v for v in self.E[x] if self.covered[v] != 1)
 
     def degree_zero_rule(self):
-        flag = False
         for i in range(len(self.W)):
             if self.covered[i] == 1:
                 continue
 
             if self.degree(i) == 0:
                 self.covered[i] = 1
-                flag = True
 
-        return flag
+        return False
 
     def adjacent_rule(self):
         flag = False
@@ -52,7 +50,7 @@ class GraphReduction:
                 continue
 
             neigh_weight = sum(self.W[v] for v in self.neighbours(i))
-            if self.W[i] >= neigh_weight:
+            if self.W[i] > neigh_weight:
                 for v in self.neighbours(i):
                     self.covered[v] = 1
 
@@ -60,6 +58,49 @@ class GraphReduction:
                 flag = True
 
         return flag
+
+    def degree_one_rule(self):
+        flag = False
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            neigh_degree_one = (v for v in self.neighbours(i) if self.degree(v) == 1)
+            weight_neigh_degree_one = sum(self.W[v] for v in neigh_degree_one)
+            if self.W[i] < weight_neigh_degree_one:
+                print(self.W[i], weight_neigh_degree_one)
+                print("IDE")
+                self.covered[i] = 1
+
+                self.reduction_weight += self.W[i]
+
+                flag = True
+
+        return flag
+
+    def remap(self):
+        new_index = [-1 for i in range(len(self.W))]
+
+        cnt = 0
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            new_index[i] = cnt
+            cnt += 1
+
+        n_nodes = len(self.W) - sum(self.covered)
+        new_W = [self.W[new_index[i]] for i in range(len(self.W)) if self.covered[i] == 0]
+        new_E = [[] for i in range(n_nodes)]
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            new_E[new_index[i]] = [new_index[v] for v in self.E[i] if self.covered[v] == 0]
+
+        return new_W, new_E
 
     def run(self):
         self.covered = [0 for i in range(len(self.W))]
@@ -70,11 +111,17 @@ class GraphReduction:
 
             flag |= self.degree_zero_rule()
             flag |= self.adjacent_rule()
-            #flag |= self.degree_one_rule()
+            flag |= self.degree_one_rule()
 
-        print(sum(self.covered), len(self.covered), len(self.covered) - sum(self.covered))
+        print("Number of removed vertices: ", sum(self.covered))
+        print("Number of remaining vertices: ", len(self.covered) - sum(self.covered))
 
-        return self.E, self.W
+        self.W, self.E = self.remap()
+
+        print("Remaining number of edges: ", sum(len(edges) for edges in self.E) / 2)
+        print("Reduction weight: ", self.reduction_weight)
+
+        return self.W, self.E, self.reduction_weight
 
 class GeneticAlgorithm:
 
@@ -110,7 +157,7 @@ class GeneticAlgorithm:
                 assert v in self.E[w]
 
     def run(self):
-        self.E, self.W = GraphReduction(self.E, self.W).run()
+        self.W, self.E, self.reduction_weight = GraphReduction(self.E, self.W).run()
 
         population = self.generate_initial_population()
 
@@ -435,7 +482,8 @@ class GeneticAlgorithm:
                 edges_not_covered.remove(frozenset([u, v]))
 
     def calculate_fitness(self, solution):
-        return sum([self.W[i] for i in range(len(solution)) if solution[i] == 1])
+        return sum([self.W[i] for i in range(len(solution)) if solution[i] == 1]) + \
+                self.reduction_weight
 
     def find_best_solution(self, population):
         best_solution = population[0]
