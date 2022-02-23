@@ -77,7 +77,7 @@ def snapFormatToDimacsFormat(snap_data_file, dimacs_data_file):
         vertex_a, vertex_b = int(line[0]), int(line[1]) # verifies it is a number
         dimacs_data_file.write("e " + str(vertex_a+1) + " " + str(vertex_b+1) + "\n")
 
-def mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file):
+def mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file, generate_weights = False):
     print("Matrix format to dimacs format")
 
     for line in mtx_data_file:
@@ -91,6 +91,10 @@ def mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file):
     print(n_nodes, n_edges)
 
     dimacs_data_file.write("p edge " + str(n_nodes) + " " + str(n_edges) + "\n")
+
+    if generate_weights == True:
+        for i in range(int(n_nodes)):
+            dimacs_data_file.write("v " + str(i+1) + " " + str((i+2) % 200) + "\n")
 
     for line in mtx_data_file:
         line = line.strip().split(' ')
@@ -117,6 +121,13 @@ if __name__ == "__main__":
                 open(dimacs_data_filename, 'w') as dimacs_data_file:
             mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file)
 
+    if sys.argv[1] == "mtxtodimacs_weights":
+        mtx_data_filename = sys.argv[2]
+        dimacs_data_filename = sys.argv[3]
+
+        with open(mtx_data_filename, 'r') as mtx_data_file, \
+                open(dimacs_data_filename, 'w') as dimacs_data_file:
+            mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file, True)
 
     if sys.argv[1] == 'readdimacs':
         filename = sys.argv[1]

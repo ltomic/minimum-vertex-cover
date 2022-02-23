@@ -63,6 +63,7 @@ class GraphReduction:
         flag = False
 
         for i in range(len(self.W)):
+            print(i)
             if self.covered[i] == 1:
                 continue
 
@@ -80,7 +81,7 @@ class GraphReduction:
         return flag
 
     def remap(self):
-        new_index = [-1 for i in range(len(self.W))]
+        new_index = [None for i in range(len(self.W))]
 
         cnt = 0
         for i in range(len(self.W)):
@@ -91,7 +92,7 @@ class GraphReduction:
             cnt += 1
 
         n_nodes = len(self.W) - sum(self.covered)
-        new_W = [self.W[new_index[i]] for i in range(len(self.W)) if self.covered[i] == 0]
+        new_W = [self.W[i] for i in range(len(self.W)) if self.covered[i] == 0]
         new_E = [[] for i in range(n_nodes)]
 
         for i in range(len(self.W)):
@@ -113,13 +114,14 @@ class GraphReduction:
             flag |= self.adjacent_rule()
             flag |= self.degree_one_rule()
 
-        print("Number of removed vertices: ", sum(self.covered))
-        print("Number of remaining vertices: ", len(self.covered) - sum(self.covered))
+            print("Number of removed vertices: ", sum(self.covered))
+            print("Number of remaining vertices: ", len(self.covered) - sum(self.covered))
+
+
+        print("Reduction weight: ", self.reduction_weight)
+        print("Remaining number of edges: ", sum(len(edges) for edges in self.E) / 2)
 
         self.W, self.E = self.remap()
-
-        print("Remaining number of edges: ", sum(len(edges) for edges in self.E) / 2)
-        print("Reduction weight: ", self.reduction_weight)
 
         return self.W, self.E, self.reduction_weight
 
