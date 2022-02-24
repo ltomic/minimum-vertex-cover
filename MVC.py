@@ -3,9 +3,9 @@ import time
 import matplotlib.pyplot as plt
 
 import sys
+import os
 
 import dimacs_random
-
 
 def createNeighborList(edges, num_nodes):
     E = [set() for i in range(num_nodes)]
@@ -16,6 +16,123 @@ def createNeighborList(edges, num_nodes):
 
     return E
 
+class GraphReduction:
+
+    def __init__(self, E, W):
+        self.E = E
+        self.W = W
+        self.reduction_weight = 0
+
+    def degree(self, x):
+        return len(list(self.neighbours(x)))
+
+    def neighbours(self, x):
+        return set(self.E[x])
+
+    def cover(self, x):
+        self.covered[x] = 1
+
+        for v in self.neighbours(x):
+            self.E[v].remove(x)
+
+        self.E[x] = set()
+
+    def degree_zero_rule(self):
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            if self.degree(i) == 0:
+                self.cover(i)
+                #self.covered[i] = 1
+
+        return False
+
+    def adjacent_rule(self):
+        flag = False
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            neigh_weight = sum(self.W[v] for v in self.neighbours(i))
+            if self.W[i] > neigh_weight:
+                for v in self.neighbours(i):
+                    self.cover(v)
+                    #self.covered[v] = 1
+
+                self.reduction_weight += neigh_weight
+                flag = True
+
+        return flag
+
+    def degree_one_rule(self):
+        flag = False
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            neigh_degree_one = (v for v in self.neighbours(i) if self.degree(v) == 1)
+            weight_neigh_degree_one = sum(self.W[v] for v in neigh_degree_one)
+            if i % 10000 == 0:
+                print(i)
+                print(weight_neigh_degree_one)
+            if self.W[i] < weight_neigh_degree_one:
+                self.cover(i)
+                #self.covered[i] = 1
+
+                self.reduction_weight += self.W[i]
+
+                flag = True
+
+        return flag
+
+    def remap(self):
+        new_index = [None for i in range(len(self.W))]
+
+        cnt = 0
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            new_index[i] = cnt
+            cnt += 1
+
+        n_nodes = len(self.W) - sum(self.covered)
+        new_W = [self.W[i] for i in range(len(self.W)) if self.covered[i] == 0]
+        new_E = [set() for i in range(n_nodes)]
+
+        for i in range(len(self.W)):
+            if self.covered[i] == 1:
+                continue
+
+            new_E[new_index[i]] = set(new_index[v] for v in self.E[i] if self.covered[v] == 0)
+
+        return new_W, new_E
+
+    def run(self):
+        self.covered = [0 for i in range(len(self.W))]
+
+        flag = True
+        while flag:
+            flag = False
+
+            flag |= self.degree_zero_rule()
+            flag |= self.adjacent_rule()
+            flag |= self.degree_one_rule()
+
+            print("Number of removed vertices: ", sum(self.covered))
+            print("Number of remaining vertices: ", len(self.covered) - sum(self.covered))
+
+
+        print("Reduction weight: ", self.reduction_weight)
+        print("Remaining number of edges: ", sum(len(edges) for edges in self.E) / 2)
+
+        self.W, self.E = self.remap()
+
+        return self.W, self.E, self.reduction_weight
+
 class GeneticAlgorithm:
 
     def __init__(self, E, W, population_size, n_gen, time_limit, p_c, p_h, p_m, p_sc,
@@ -23,20 +140,34 @@ class GeneticAlgorithm:
         self.E = E
         self.W = W
 
+        self.check_bidirectional_graph()
+
         self.n = population_size
         self.n_gen = n_gen
 
+        # probability of crossover, else random solution generated
         self.p_c = p_c
+        # probability of first repair procedure, else second repair procedure
         self.p_h = p_h
+        # probability of mutation, 0 is set to 1 with additional condition of
+        # weigth/degree ration less than average weight/degree ratio of all vertices
         self.p_m = p_m
         # probability with which the vertex having the
         # maximum ratio of weight to degree is selected
         self.p_sc = p_sc
+        # probability with which the solution with better fitness is selected during
+        # binary tournament selection
         self.p_better = p_better
         self.p_u = p_u
         self.time_limit = time_limit
 
+    def check_bidirectional_graph(self):
+        for v, N in enumerate(self.E):
+            for w in N:
+                assert v in self.E[w]
+
     def run(self):
+        self.W, self.E, self.reduction_weight = GraphReduction(self.E, self.W).run()
 
         population = self.generate_initial_population()
 
@@ -46,9 +177,11 @@ class GeneticAlgorithm:
         avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
-        best_by_iteration = [current_best]
+        best_by_iteration = []
         solution_geneses = [1]
         stopwatch = time.time()
+
+        fails = 0
         while gen < self.n_gen:
             print("generation: ", gen)
             if random.random() < self.p_c:
@@ -78,6 +211,12 @@ class GeneticAlgorithm:
 
                 best_by_iteration.append(current_best)
                 solution_geneses.append(genesis)
+                fails = 0
+            else:
+                fails += 1
+
+                if fails == 10:
+                    break
             check_time = time.time()
             if((check_time - stopwatch) > self.time_limit):
                 gen -= 1
@@ -92,12 +231,19 @@ class GeneticAlgorithm:
         print("Generate initial population")
         population = []
 
+        fails = 0
         while len(population) < self.n:
             new_solution = self.generate_solution()
 
-            if new_solution not in population:
-                population.append(new_solution)
+            if new_solution in population:
+                fails += 1
+                if fails == 10:
+                    break
 
+            population.append(new_solution)
+            fails = 0
+
+        self.n = len(population) # if generating self.n unique solutions failed
         return population
 
     def generate_solution(self):
@@ -179,9 +325,9 @@ class GeneticAlgorithm:
 
             s = self.find_vertex_with_largest_uncovered_edge_weight_ratio(uncovered_edges_cnt, A)
 
-            solution[v] = 1
-            vertices_not_in_solution.remove(v)
-            self.update_uncovered_edges_cnt(uncovered_edges_cnt, solution, v)
+            solution[s] = 1
+            vertices_not_in_solution.remove(s)
+            self.update_uncovered_edges_cnt(uncovered_edges_cnt, solution, s)
 
         if self.check_vertex_cover(solution) == False:
             print("Second repair does not return vertex cover")
@@ -303,15 +449,19 @@ class GeneticAlgorithm:
         return uncovered_edges_cnt
 
     def find_vertex_with_largest_uncovered_edge_weight_ratio(self, uncovered_edges_cnt, vertices):
-        sol = -1
+        sol = list(vertices)[0]
         max_ratio = -1
 
         for i in vertices:
-            ratio = uncovered_edges_cnt[i] / self.W[i]
+            if self.W[i] == 0:
+                return i
+            else:
+                ratio = uncovered_edges_cnt[i] / self.W[i]
 
-            if ratio > max_ratio and (random.random() < self.p_u or max_ratio == -1):
+            if ratio > max_ratio:
                 max_ratio = ratio
                 sol = i
+
         return sol
 
     def check_vertex_cover(self, solution):
@@ -342,7 +492,8 @@ class GeneticAlgorithm:
                 edges_not_covered.remove(frozenset([u, v]))
 
     def calculate_fitness(self, solution):
-        return sum([self.W[i] for i in range(len(solution)) if solution[i] == 1])
+        return sum([self.W[i] for i in range(len(solution)) if solution[i] == 1]) + \
+                self.reduction_weight
 
     def find_best_solution(self, population):
         best_solution = population[0]
@@ -374,7 +525,6 @@ class GeneticAlgorithm:
         worst_solution_index = self.find_worst_solution_index(population)
 
         population[worst_solution_index] = new_solution
-        
 
     def binary_tournament_selection(self, population):
         a, b = random.sample(population, k = 2)
@@ -388,11 +538,12 @@ class GeneticAlgorithm:
 
     def mutate(self, solution, WDR_list, average_WDR):
         for i in range(len(solution)):
+            rand = random.random()
             if solution[i] == 1:
-                if random.random() < self.p_m:
+                if rand < self.p_m:
                     solution[i] = 0
             else:
-                if random.random() < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
+                if rand < self.p_m and WDR_list[i] < average_WDR and self.degree(i) > 0:  # redoslijed oko and?
                     solution[i] = 1
 
         return solution
@@ -418,39 +569,39 @@ def plot_results_by_iteration(best_by_iteration, solution_geneses,
     fig, ax = plt.subplots()
 
     ax.plot(range(len(best_by_iteration)), best_by_iteration, linewidth = 2.0)
+
     for i in range(len(best_by_iteration)):
         if(solution_geneses[i] == 1):
-            ax.plot(i, best_by_iteration[i], 'r.')
+            ax.plot(i, best_by_iteration[i], 'ro')
         elif(solution_geneses[i] == 0):
-            ax.plot(i, best_by_iteration[i], 'g.')
+            ax.plot(i, best_by_iteration[i], 'go')
     text = """Population size: {}
-Edges: {}
 Nodes: {}
-Cover size: {}
+Edges: {}
 Weights: {}
+Cover size: {}
 Cover weight: {}
 Generations: {}
-Time: {:.3f} seconds""".format(poptext, edgestext, nodestext, cover_sizetext,
-                               masstext, weighttext, gentext, timetext)
-    plt.text(0.8, 0.8, text,
+Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, masstext,
+                               cover_sizetext, weighttext, gentext, timetext)
+    plt.text(0.8, 0.80, text,
              horizontalalignment = 'center',
              verticalalignment = 'center', transform = ax.transAxes)
     plt.xlabel(graphtext)
     plt.show()
 
 
-def main(filename, population_size, n_gen, random_weights, time_limit):
-
+def main(filename, population_size, n_gen, generate_weights, time_limit):
     program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
-        W, edges = dimacs_random.readData(input_file, random_weights)
+        W, edges = dimacs_random.readData(input_file, generate_weights)
 
     E = createNeighborList(edges, len(W))
 
     algorithm = GeneticAlgorithm(E, W, population_size, n_gen, time_limit,
-            p_c = 0.9, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
-            p_better = 0.8, p_u = 0.8)
+            p_c = 0.95, p_h = 0.2, p_m = 0.05, p_sc = 0.6,
+            p_better = 1, p_u = 0.95)
 
     solution, best_by_iteration, solution_geneses, n_gen = algorithm.run()
 
@@ -465,3 +616,14 @@ def main(filename, population_size, n_gen, random_weights, time_limit):
                               n_gen, algorithm.calculate_fitness(solution),
                               program_end_time - program_start_time,
                               filename[1+filename.index('/'):])
+
+if __name__ == "__main__":
+    folder = "datasets/"
+    filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
+
+    population_size = 50
+    n_gen = 1000
+    generate_weights = False
+    time_limit_sec = 100
+    for filename in filelist:
+        main(folder + filename, population_size, n_gen, generate_weights, time_limit_sec)
