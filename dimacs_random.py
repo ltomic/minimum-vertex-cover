@@ -79,6 +79,7 @@ def snapFormatToDimacsFormat(snap_data_file, dimacs_data_file):
 
 def mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file, generate_weights = False):
     print("Matrix format to dimacs format")
+    print("Writing to file", dimacs_data_file)
 
     for line in mtx_data_file:
         if line.strip()[0] == '%':

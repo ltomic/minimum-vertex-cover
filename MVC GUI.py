@@ -30,7 +30,15 @@ class GraphReduction:
         return len(list(self.neighbours(x)))
 
     def neighbours(self, x):
-        return (v for v in self.E[x] if self.covered[v] != 1)
+        return set(self.E[x])
+
+    def cover(self, x):
+        self.covered[x] = 1
+
+        for v in self.neighbours(x):
+            self.E[v].remove(x)
+
+        self.E[x] = set()
 
     def degree_zero_rule(self):
         for i in range(len(self.W)):
@@ -38,7 +46,8 @@ class GraphReduction:
                 continue
 
             if self.degree(i) == 0:
-                self.covered[i] = 1
+                self.cover(i)
+                #self.covered[i] = 1
 
         return False
 
@@ -52,7 +61,8 @@ class GraphReduction:
             neigh_weight = sum(self.W[v] for v in self.neighbours(i))
             if self.W[i] > neigh_weight:
                 for v in self.neighbours(i):
-                    self.covered[v] = 1
+                    self.cover(v)
+                    #self.covered[v] = 1
 
                 self.reduction_weight += neigh_weight
                 flag = True
@@ -63,16 +73,17 @@ class GraphReduction:
         flag = False
 
         for i in range(len(self.W)):
-            print(i)
             if self.covered[i] == 1:
                 continue
 
             neigh_degree_one = (v for v in self.neighbours(i) if self.degree(v) == 1)
             weight_neigh_degree_one = sum(self.W[v] for v in neigh_degree_one)
+            if i % 10000 == 0:
+                print(i)
+                print(weight_neigh_degree_one)
             if self.W[i] < weight_neigh_degree_one:
-                print(self.W[i], weight_neigh_degree_one)
-                print("IDE")
-                self.covered[i] = 1
+                self.cover(i)
+                #self.covered[i] = 1
 
                 self.reduction_weight += self.W[i]
 
@@ -93,13 +104,13 @@ class GraphReduction:
 
         n_nodes = len(self.W) - sum(self.covered)
         new_W = [self.W[i] for i in range(len(self.W)) if self.covered[i] == 0]
-        new_E = [[] for i in range(n_nodes)]
+        new_E = [set() for i in range(n_nodes)]
 
         for i in range(len(self.W)):
             if self.covered[i] == 1:
                 continue
 
-            new_E[new_index[i]] = [new_index[v] for v in self.E[i] if self.covered[v] == 0]
+            new_E[new_index[i]] = set(new_index[v] for v in self.E[i] if self.covered[v] == 0)
 
         return new_W, new_E
 
@@ -631,7 +642,8 @@ p = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 g = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 t = tk.Entry(top, exportselection = 0, justify = tk.CENTER)
 lm = tk.Label(top, text = 'Choose a graph', font = f2)
-optmenu = tkk.Combobox(top, values=filelist, state='readonly')
+optmenu = tkk.Combobox(top, values=filelist, state='readonly', font=f2)
+top.option_add("*TCombobox*Listbox*Font", f2)
 b = tk.Button(top, text = "Begin!", font = f1,
               height = 2, width = 20, bg = 'black', fg = 'white',
               command = lambda: boom("datasets/" + optmenu.get(), int(p.get()),
