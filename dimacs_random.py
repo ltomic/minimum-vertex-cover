@@ -1,7 +1,7 @@
 import sys
 import random
 
-def readData(data_file, random_weights):
+def readData(data_file):
     for line in data_file:
         line = line.strip()
 
@@ -19,7 +19,7 @@ def readData(data_file, random_weights):
 
             # vertex weights not listed are assumed to be 1
             # TODO: maybe this is a bad practice
-            W = [(i + 2) % 200 if random_weights else 1 for i in range(n_nodes)]
+            W = [-1 for i in range(n_nodes)]
             edges = []
 
         if line[0] == "v":
@@ -32,6 +32,9 @@ def readData(data_file, random_weights):
 
     if n_edges != len(edges):
         print("Number of edges not matching number of specified edges")
+        sys.exit(0)
+    if any([w == -1 for w in W]) == True:
+        print("Weights of all edges are not listed")
         sys.exit(0)
 
     return W, edges
@@ -93,9 +96,9 @@ def mtxFormatToDimacsFormat(mtx_data_file, dimacs_data_file, generate_weights = 
 
     dimacs_data_file.write("p edge " + str(n_nodes) + " " + str(n_edges) + "\n")
 
-    if generate_weights == True:
-        for i in range(int(n_nodes)):
-            dimacs_data_file.write("v " + str(i+1) + " " + str((i+2) % 200) + "\n")
+    for i in range(int(n_nodes)):
+        weight = (i+2) % 200 if generate_weights == True else False
+        dimacs_data_file.write("v " + str(i+1) + " " + str((i+2) % 200) + "\n")
 
     for line in mtx_data_file:
         line = line.strip().split(' ')
