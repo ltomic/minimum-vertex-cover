@@ -650,10 +650,10 @@ if __name__ == "__main__":
     folder = "datasets/"
     filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
 
-    population_size = 10
-    n_gen = 20
+    population_size = 50
+    n_gen = 1000
     generate_weights = False
-    time_limit_sec = 100
+    time_limit_sec = 1000
 
     for filename in filelist:
         main(folder + filename, population_size, n_gen, generate_weights, False, time_limit_sec)
