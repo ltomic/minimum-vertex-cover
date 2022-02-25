@@ -644,7 +644,7 @@ def main(filename, population_size, n_gen, generate_weights, show_plot, time_lim
                               len(W), len(edges), sum(W), cover_size, n_gen, result,
                               program_time, clean_filename, show_plot, date_text)
 
-    return fitness, program_time, population_size, n_gen
+    return result, program_time, population_size, n_gen
 
 if __name__ == "__main__":
     folder = "datasets/"
@@ -655,8 +655,7 @@ if __name__ == "__main__":
     generate_weights = False
     time_limit_sec = 100
 
-    with open("results" + get_date() + ".txt", "w") as results:
-        for filename in filelist:
-            main(folder + filename, population_size, n_gen, generate_weights, time_limit_sec)
+    for filename in filelist:
+        main(folder + filename, population_size, n_gen, generate_weights, False, time_limit_sec)
 
     #plt.show()
