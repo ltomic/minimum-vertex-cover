@@ -1,6 +1,7 @@
 import random
 import time
 import matplotlib.pyplot as plt
+import datetime as dt
 
 import sys
 import os
@@ -177,7 +178,7 @@ class GeneticAlgorithm:
         avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
-        best_by_iteration = []
+        best_by_iteration = [current_best]
         solution_geneses = [1]
         stopwatch = time.time()
 
@@ -563,7 +564,7 @@ class GeneticAlgorithm:
 def plot_results_by_iteration(best_by_iteration, solution_geneses,
                               poptext, nodestext, edgestext, masstext,
                               cover_sizetext, gentext, weighttext,
-                              timetext, graphtext):
+                              timetext, graphtext, date_text):
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
@@ -588,10 +589,16 @@ Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, masstext,
              horizontalalignment = 'center',
              verticalalignment = 'center', transform = ax.transAxes)
     plt.xlabel(graphtext)
+    png_name = "images/" + graphtext[:graphtext.index('.')] + '_' + date_text
+    plt.savefig(png_name, bbox_inches='tight')
     plt.show()
 
 
 def main(filename, population_size, n_gen, generate_weights, time_limit):
+
+    date = dt.datetime.now()
+    date_text = date.strftime("%d-%m-%Y-%H-%M-%S")
+
     program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
@@ -605,17 +612,28 @@ def main(filename, population_size, n_gen, generate_weights, time_limit):
 
     solution, best_by_iteration, solution_geneses, n_gen = algorithm.run()
 
-    print(algorithm.calculate_fitness(solution))
+    result = algorithm.calculate_fitness(solution)
+    
+    print(result)
     print(algorithm.check_vertex_cover(solution))
 
     program_end_time = time.time()
 
+    cover_size = solution.count(1)
+
+    clean_filename = filename[1+filename.index('/'):]
+
+    output = "results/" + clean_filename[:clean_filename.index('.')] + ".txt"
+
+    with open(output, "a+") as output_file:
+        output_file.write("{}\n{}\n".format(date_text, result))
+
     plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
             in best_by_iteration], solution_geneses, population_size,
-                              len(W), len(edges), sum(W), solution.count(1),
-                              n_gen, algorithm.calculate_fitness(solution),
+                              len(W), len(edges), sum(W), cover_size,
+                              n_gen, result,
                               program_end_time - program_start_time,
-                              filename[1+filename.index('/'):])
+                              clean_filename, date_text)
 
 if __name__ == "__main__":
     folder = "datasets/"
