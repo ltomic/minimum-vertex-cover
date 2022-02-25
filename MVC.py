@@ -1,6 +1,7 @@
 import random
 import time
 import matplotlib.pyplot as plt
+import datetime
 
 import sys
 import os
@@ -140,6 +141,7 @@ class GeneticAlgorithm:
         self.E = E
         self.W = W
 
+
         self.check_bidirectional_graph()
 
         self.n = population_size
@@ -173,13 +175,19 @@ class GeneticAlgorithm:
 
         current_best = self.find_best_solution(population)
         genesis = 1
-        WDR_list = [self.W[i] / self.degree(i) if self.degree(i) > 0 else float('inf') for i in range(len(self.E))]
-        avg_WDR = sum(WDR_list) / len(self.E)
 
         gen = 0
         best_by_iteration = []
         solution_geneses = [1]
+
+        if len(self.E) == 0:
+            return current_best, best_by_iteration, solution_geneses, gen
+
         stopwatch = time.time()
+
+
+        WDR_list = [self.W[i] / self.degree(i) if self.degree(i) > 0 else float('inf') for i in range(len(self.E))]
+        avg_WDR = sum(WDR_list) / len(self.E)
 
         fails = 0
         while gen < self.n_gen:
@@ -560,10 +568,13 @@ class GeneticAlgorithm:
 
         return child
 
+def get_date():
+    return '{date:%Y-%m-%d_%H:%M:%S}'.format(date = datetime.datetime.now())
+
 def plot_results_by_iteration(best_by_iteration, solution_geneses,
                               poptext, nodestext, edgestext, masstext,
                               cover_sizetext, gentext, weighttext,
-                              timetext, graphtext):
+                              timetext, graphtext, show_plot):
     # TODO: add types of points on graph based on how the new best by iteration
     #   solution was created - crossover, random or something else
     fig, ax = plt.subplots()
@@ -588,14 +599,18 @@ Time: {:.3f} seconds""".format(poptext, nodestext, edgestext, masstext,
              horizontalalignment = 'center',
              verticalalignment = 'center', transform = ax.transAxes)
     plt.xlabel(graphtext)
-    plt.show()
+
+    plt.savefig("images/" + get_date() + "-" + graphtext + ".png", dpi = 200)
+    if show_plot == True:
+        plt.show()
 
 
-def main(filename, population_size, n_gen, generate_weights, time_limit):
+def main(filename, population_size, n_gen, generate_weights, show_plot, time_limit):
+    print("Processing: ", filename)
     program_start_time = time.time()
 
     with open(filename, 'r') as input_file:
-        W, edges = dimacs_random.readData(input_file, generate_weights)
+        W, edges = dimacs_random.readData(input_file)
 
     E = createNeighborList(edges, len(W))
 
@@ -610,20 +625,30 @@ def main(filename, population_size, n_gen, generate_weights, time_limit):
 
     program_end_time = time.time()
 
-    plot_results_by_iteration([algorithm.calculate_fitness(solution) for solution \
-            in best_by_iteration], solution_geneses, population_size,
+    fitness = algorithm.calculate_fitness(solution)
+    program_time = program_end_time - program_start_time
+    fitnesses = [algorithm.calculate_fitness(solution) for solution in best_by_iteration]
+    plot_results_by_iteration(fitnesses, solution_geneses, population_size,
                               len(W), len(edges), sum(W), solution.count(1),
-                              n_gen, algorithm.calculate_fitness(solution),
-                              program_end_time - program_start_time,
-                              filename[1+filename.index('/'):])
+                              n_gen, fitness, program_time, filename[1+filename.index('/'):],
+                              show_plot)
+
+    return fitness, program_time, population_size, n_gen
 
 if __name__ == "__main__":
     folder = "datasets/"
     filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
 
-    population_size = 50
-    n_gen = 1000
+    population_size = 10
+    n_gen = 20
     generate_weights = False
     time_limit_sec = 100
-    for filename in filelist:
-        main(folder + filename, population_size, n_gen, generate_weights, time_limit_sec)
+
+    with open("results" + get_date() + ".txt", "w") as results:
+        for filename in filelist:
+            fitness, program_time, population_size, n_gen = main(folder + filename, population_size, n_gen, generate_weights, time_limit_sec)
+            results.write(filename + " " + str(fitness) + " " + str(program_time) + " " + \
+                    str(population_size) + " " + str(n_gen) + "\n")
+
+
+    #plt.show()
