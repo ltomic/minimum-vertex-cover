@@ -2,7 +2,7 @@ import subprocess
 import os
 import datetime as dt
 
-args = ["./fastwvc-master/mwvc", "filename", "0", "10", "0"]
+args = ["./fastwvc-master/mwvc", "filename", "0", "1000", "0"]
 
 folder = "datasets/"
 filelist = sorted([fname for fname in os.listdir(folder)], key = lambda name: name.lower())
